@@ -1,84 +1,81 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using System.Threading;
 
 namespace Perceptron.WhichSide
 {
     public class Training
     {
-        private double _net;
-
-        private List<DataStruct> _learningData { get; }
         private double _learningRate;
-        private int _epochCounter;
+        private double[,] _data;
+        private double[] _weights;
         private int _epoch;
-        private bool _trained;
+        private int _epochCounter;
 
-        public DataStruct Weight { get; }
-
-        public Training(List<DataStruct> learningData, double learningRate = 0.01, int epoch = 10)
+        public Training(double[,] data, double[] weigths, double learningRate = 0.25, int epoch = 10)
         {
-            _learningData = learningData;
+            _data = data;
+            _weights = weigths;
             _learningRate = learningRate;
             _epoch = epoch;
-            _epochCounter = 0;
-
-            Weight = new DataStruct(0, 0, 0);
         }
 
         public void Execute()
         {
-            try
-            {
-                _trained = true;
+            _epochCounter = 0;
 
-                do
+            while (_epochCounter < _epoch)
+            {
+                Console.Write("Epoch {0}", (_epochCounter + 1).ToString().PadLeft(3));
+
+                for (int d = 0; d < _data.GetLength(0); d++)
                 {
-                    Run();
-                    _epochCounter++;
+                    var errorRate = NetCalculate(d);
+
+                    if (errorRate == 0)
+                        continue;
+
+                    UpdateWeight(d, errorRate);
+
+                    Thread.Sleep(1);
                 }
-                while (!_trained && _epochCounter < _epoch);
-
-                if (!_trained && _epochCounter >= _epoch)
-                    Console.WriteLine("Training not complete with {0} epoch.", _epoch);
-
-                _epochCounter = 0;
+                _epochCounter++;
             }
-            catch (Exception ex)
+        }
+
+        private int NetCalculate(int d)
+        {
+            var _output = 0.0;
+
+            for (int w = 0; w < _weights.Length; w++)
+                _output += _weights[w] * _data[d, w];
+
+            return Activation(_output, _data[d, _data.GetLength(1) - 1]);
+        }
+
+        public int Activation(double output, double expected)
+        {
+            if (output >= 0 && expected == 0) return -1;
+            if (output < 0 && expected == 1) return 1;
+            return 0;
+        }
+
+        private int _epochPrint = -1;
+        private void UpdateWeight(int d, int errorRate)
+        {
+            for (int w = 0; w < _weights.Length; w++)
             {
-                Debug.WriteLine(ex.Message);
+                _weights[w] = _weights[w] + (_learningRate * errorRate * _data[d, w]);
+                var sign = _weights[w] > 0.01 ? "+" : "";
+
+                if (_epochPrint != _epochCounter)
+                    Console.Write($"{sign}{sign}{sign}{sign}{_weights[w].ToString("F2")}".PadLeft(12));
             }
-        }
 
-        private void Run()
-        {
-            Console.WriteLine(">>> Epoch training {0}", _epochCounter + 1);
-            Console.WriteLine("{0}, {1}, {2}", Weight.CategoryA, Weight.CategoryB, Weight.ExpectedResult);
-
-            foreach (var data in _learningData)
+            if (_epochPrint != _epochCounter)
             {
-                var outputFromNet = NetCalculate(data.CategoryA, data.CategoryB);
-
-                if (outputFromNet != data.ExpectedResult)
-                {
-                    UpdateWeight(data, outputFromNet);
-                    _trained = false;
-                }
+                _epochPrint = _epochCounter;
+                Console.WriteLine();
             }
-        }
-
-        private int NetCalculate(double categoryA, double categoryB)
-        {
-            _net = (categoryA * Weight.CategoryA) + (categoryB * Weight.CategoryB) + ((-1) * Weight.Bias);
-            return (_net >= 0) ? 1 : 0;
-        }
-
-        private void UpdateWeight(DataStruct data, int outputFromNet)
-        {
-            var calculatedError = data.ExpectedResult - outputFromNet;
-            Weight.CategoryA = Weight.CategoryA + (_learningRate * calculatedError * data.CategoryA);
-            Weight.CategoryB = Weight.CategoryB + (_learningRate * calculatedError * data.CategoryB);
-            Weight.ExpectedResult = Weight.ExpectedResult + (_learningRate * calculatedError * (-1));
         }
     }
 }
